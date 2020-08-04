@@ -1,0 +1,11 @@
+#!/bin/bash -u
+
+service_deploy() {
+    lxc config set "$1" boot.autostart.priority 50
+}
+
+service_setup() {
+    rm -f /etc/apt/apt.conf.d/01proxy
+    apt-get install -y apt-cacher-ng
+    echo 'PassThroughPattern: .*' >> /etc/apt-cacher-ng/acng.conf
+}
