@@ -57,7 +57,7 @@ orca_lxd_clone_base() {
 
 # source the service file and set global variables
 orca_service_parse() {
-    svc="$1"
+    svc="service/$1"
     vm_name="$ORCA_PREFIX-$service"
     if [[ ! -d "$svc" ]]; then
         orcabort "$svc not found"
@@ -117,9 +117,8 @@ orca_usage() {
 
 ## orca commands ##
 orca_cmd_build() {
-    local vm_build="$vm_name-build"
     orca_service_parse "$1"
-    orca_push_bundle "$vm_name" "$svc" || orcabort "push-bundle failed"
+    local vm_build="$vm_name-build"
 
     if [[ "$(type -t service_build)" = function ]]; then
         orca_log "[+] Running $svc build()"
@@ -127,6 +126,7 @@ orca_cmd_build() {
     else
         orca_lxd_clone_base "$vm_build" || orcabort "clone failed"
     fi
+    orca_push_bundle "$vm_name" "$svc" || orcabort "push-bundle failed"
 
     if [[ "$(type -t service_prep)" = function ]]; then
         orca_log "[+] Running $svc prep()"
@@ -136,8 +136,8 @@ orca_cmd_build() {
 }
 
 orca_cmd_deploy() {
-    local vm_build="$vm_name-build"
     orca_service_parse "$1"
+    local vm_build="$vm_name-build"
     orca_log "[+] Building $vm_name"
     orca_cmd_build "$1" || orcabort "build failed"
     # stop and delete old box
