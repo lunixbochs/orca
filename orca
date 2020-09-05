@@ -1,7 +1,7 @@
 #!/bin/bash -eu
 
 ORCA_PREFIX=orca
-ORCA_LXD_PRESSEED="
+ORCA_LXD_PRESEED="
 storage_pools:
 - name: data
   driver: zfs
@@ -53,7 +53,7 @@ orca_lxd_build_base() {
     local base="${ORCA_PREFIX}-base"
     orca_log "building $base"
     lxc delete --force "$base" || true
-    lxc init ubuntu:18.04 "$base" || oracbort "could not init base"
+    lxc init ubuntu:18.04 "$base" || orcabort "could not init base"
     lxc network attach orcabr0 "$base" eth0 || orcabort "could not attach orcabr0"
     lxc start "$base" || orcabort "could not start base"
     orca_lxd_wait_ready "$base"
@@ -93,6 +93,7 @@ orca_service_parse() {
     if [[ ! -d "$svc" ]]; then
         orcabort "$svc not found"
     fi
+    orca_source "$svc/service"
 }
 
 # push a tarball into a container
@@ -114,7 +115,7 @@ orca_push_bundle() {(
     orca_source "$bundle/service"
     if [[ "$(type -t service_setup)" = function ]]; then
         lxc file push "${bundle}/service" "${container}/tmp/$ORCA_PREFIX-service" || exit 1
-        local bundle_exec="set -x; cd /tmp; . $ORCA_PREFIX-service; rm -f $ORCA_PREFIX-service $ORCA_PREFIX-bundle.tar.gz; service_setup || exit 1"
+        local bundle_exec="set -x; cd /tmp; . $ORCA_PREFIX-service; rm -f $ORCA_PREFIX-service $ORCA_PREFIX-bundle.tar.gz; service_setup '$container' || exit 1"
         lxc exec "$container" "$@" -- bash -c "$bundle_exec" || {
             rm -rf "$tgz" "$tmpdir"
             exit 1
@@ -124,6 +125,14 @@ orca_push_bundle() {(
     )}
 
 orca_usage() {
+    echo "orca init"
+    echo "     initialize lxd"
+    echo
+
+    echo "orca base"
+    echo "   - (re)build the LXD base box"
+    echo
+
     echo "orca build SERVICE [SERVICE ...]"
     echo '   - builds the LXD box "'"$ORCA_PREFIX"'-$NAME-build"'
     echo '     using the files in service/$NAME'
@@ -155,8 +164,10 @@ orca_cmd_build() {
     fi
     cd "$base"
     orca_log "[+] Starting $vm_build"
-    lxc start "$vm_build" || abort "lxc start failed"
+    lxc start "$vm_build" || orcabort "lxc start failed"
     orca_lxd_wait_ready "$vm_build"
+    # add vm name(s) to /etc/hosts so sudo doesn't lag
+    lxc exec "$vm_build" -- bash -c "echo 127.0.0.1 $vm_name $vm_build >> /etc/hosts"
 
     if [[ "$(type -t service_prep)" = function ]]; then
         orca_log "[+] Running $svc prep()"
@@ -166,7 +177,7 @@ orca_cmd_build() {
     fi
 
     orca_log "[+] Pushing $svc bundle"
-    orca_push_bundle "$vm_build" "$svc" || abort "push-bundle failed"
+    orca_push_bundle "$vm_build" "$svc" || orcabort "push-bundle failed"
 
     orca_log "[+] Enabling apt-daily"
     lxc exec "$vm_build" systemctl unmask apt-daily.timer
@@ -212,6 +223,7 @@ orca_cmd_refresh() {
         orca_log "[+] Running $svc refresh()"
         cd "$base/$svc"
         service_refresh "$vm_name"
+        cd "$base"
     else
         orca_log "[+] Restart $vm_name: stop"
         lxc stop "$vm_name"
@@ -228,6 +240,11 @@ orca_cmd_shell() {
 
 orca_cmd_init() {
     echo "$ORCA_LXD_PRESEED" | lxd init --preseed
+    echo 'orca() { ~/orca/orca "$@"; }
+build() { orca build "$@"; }
+shell() { orca shell "$@"; }
+deploy() { orca deploy "$@"; }
+refresh() { orca refresh "$@"; }' >> ~/.bashrc
 }
 
 orca_cmd_base() {
@@ -261,5 +278,6 @@ for service in "$@"; do
 done
 # run $cmd per service
 for service in "$@"; do
+    cd "$base"
     "orca_cmd_$cmd" "$service"
 done
