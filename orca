@@ -139,7 +139,7 @@ orca_usage() {
     echo '     and the functions in service/$NAME/service'
     echo
 
-    echo "orca deploy SERVICE [SERVICE ...]"
+    echo "orca deploy [-n NUM] SERVICE [SERVICE ...]"
     echo '   - builds SERVICE'
     echo '   - renames '"$ORCA_PREFIX"'-$NAME-build to '"$ORCA_PREFIX"'-$NAME'
     echo '   - runs deploy script'
@@ -194,26 +194,34 @@ orca_cmd_deploy() {
     local vm_build="$vm_name-build"
     orca_log "[+] Building $vm_name"
     orca_cmd_build "$1" || orcabort "build failed"
-    # stop and delete old box
-    # TODO: rename old box instead of directly deleting it?
-    if orca_lxd_exists "$vm_name"; then
-        orca_log "[+] Stopping $vm_name"
-        lxc stop "$vm_name" || true
-        lxc delete "$vm_name"
-    fi
-    orca_log "[+] Deploying $vm_build -> $vm_name"
-    lxc move "$vm_build" "$vm_name"
-    lxc config set "$vm_name" boot.autostart true
-    lxc config set "$vm_name" boot.autostart.priority 5
-    lxc config set "$vm_name" boot.autostart.delay 0
-    if [[ "$(type -t service_deploy)" = function ]]; then
-        orca_log "[+] Running $service deploy()"
-        cd "$base/$svc"
-        service_deploy "$vm_name"
-        cd "$base"
-    fi
-    orca_log "[+] Starting $vm_name"
-    lxc start "$vm_name"
+    # stop and delete old box(es)
+    for vm_num in $(seq -w 0 $((NUM - 1))); do
+        local vm_name_i="$vm_name-$vm_num"
+        # leave off the number when '-n' is not specified
+        if [[ "$NUM" -eq 1 ]]; then
+            vm_name_i="$vm_name"
+        fi
+        # TODO: rename old box instead of directly deleting it?
+        if orca_lxd_exists "$vm_name_i"; then
+            orca_log "[+] Stopping $vm_name_i"
+            lxc stop "$vm_name_i" || true
+            lxc delete "$vm_name_i"
+        fi
+        orca_log "[+] Deploying $vm_build -> $vm_name_i"
+        lxc copy "$vm_build" "$vm_name_i"
+        lxc config set "$vm_name_i" boot.autostart true
+        lxc config set "$vm_name_i" boot.autostart.priority 5
+        lxc config set "$vm_name_i" boot.autostart.delay 0
+        if [[ "$(type -t service_deploy)" = function ]]; then
+            orca_log "[+] Running $service deploy()"
+            cd "$base/$svc"
+            service_deploy "$vm_name_i"
+            cd "$base"
+        fi
+        orca_log "[+] Starting $vm_name_i"
+        lxc start "$vm_name_i"
+    done
+    lxc delete "$vm_build"
 }
 
 orca_cmd_refresh() {
@@ -264,6 +272,20 @@ fi
 
 cmd="$1"
 shift 1
+
+# parse out the '-n' option for 'deploy -n'
+NUM=1
+while getopts 'n:' flag; do
+    case "$flag" in
+        n) NUM="$OPTARG" ;;
+    esac
+done
+readonly NUM
+shift $((OPTIND - 1))
+if [[ ! "$NUM" =~ ^[0-9]+$ ]]; then
+    orca_usage
+    orcabort "invalid number of instances to deploy: $NUM"
+fi
 
 if [[ "$(type -t "orca_cmd_$cmd")" != function ]]; then
     orca_usage
