@@ -126,7 +126,7 @@ orca_push_bundle() {(
 
 orca_usage() {
     echo "orca init"
-    echo "     initialize lxd"
+    echo "   - initialize lxd"
     echo
 
     echo "orca base"
