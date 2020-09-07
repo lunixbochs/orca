@@ -195,7 +195,7 @@ orca_cmd_deploy() {
     orca_log "[+] Building $vm_name"
     orca_cmd_build "$1" || orcabort "build failed"
     # stop and delete old box(es)
-    for vm_num in $(seq -w 0 $((NUM - 1))); do
+    for vm_num in $(seq 0 $((NUM - 1))); do
         local vm_name_i="$vm_name-$vm_num"
         # leave off the number when '-n' is not specified
         if [[ "$NUM" -eq 1 ]]; then
