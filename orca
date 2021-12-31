@@ -13,6 +13,7 @@ networks:
   config:
     ipv4.address: 172.27.0.1/16
     ipv4.nat: true
+    ipv6.address: none
 profiles:
 - name: default
   config:
