@@ -53,7 +53,7 @@ orca_lxd_build_base() {
     local base="${ORCA_PREFIX}-base"
     orca_log "building $base"
     lxc delete --force "$base" || true
-    lxc init ubuntu:18.04 "$base" || orcabort "could not init base"
+    lxc init ubuntu:20.04 "$base" || orcabort "could not init base"
     lxc network attach orcabr0 "$base" eth0 || orcabort "could not attach orcabr0"
     lxc start "$base" || orcabort "could not start base"
     orca_lxd_wait_ready "$base"
