@@ -1,0 +1,41 @@
+#!/bin/bash -u
+
+service_setup() {
+    # disable apt update on boot
+    # NOTE: apt-daily should be re-enabled after individual box build
+    systemctl mask apt-daily.timer
+    systemctl mask apt-daily-upgrade.timer
+
+    # disable broken/unused services
+    systemctl mask \
+        ondemand.service \
+        iscsid.service \
+        open-iscsi.service \
+        console-getty.service \
+        dev-hugepages.mount \
+        systemd-journald-audit.socket \
+        systemd-remount-fs.service \
+        systemd-sysctl.service \
+        sys-kernel-config.mount \
+        apparmor.service \
+        systemd-modules-load.service \
+        unattended-upgrades.service
+
+    chmod -x /etc/cron.daily/mlocate
+
+    cd /home/ubuntu
+    chown -R ubuntu:ubuntu .
+    chmod 700 .ssh
+    chmod 600 .ssh/authorized_keys
+    # sudo -u ubuntu ssh-keygen -f id_rsa -t rsa -N ''
+
+    if nc -z orca-apt-cache 3142 &>/dev/null; then
+        echo "[+] Using apt cache"
+        echo 'Acquire::http::proxy "http://orca-apt-cache:3142";' > /etc/apt/apt.conf.d/01proxy
+    fi
+
+    apt-get update
+    apt-get upgrade -y
+    apt-get remove -y snapd
+    apt-get autoremove -y
+}
