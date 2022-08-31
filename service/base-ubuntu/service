@@ -1,5 +1,13 @@
 #!/bin/bash -u
 
+service_base() {
+    if [[ -z "${2-}" ]]; then
+        echo "ubuntu:20.04"
+    else
+        echo "ubuntu:$2"
+    fi
+}
+
 service_setup() {
     # disable apt update on boot
     # NOTE: apt-daily should be re-enabled after individual box build
