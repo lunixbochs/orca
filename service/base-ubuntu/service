@@ -30,6 +30,7 @@ service_setup() {
         unattended-upgrades.service
 
     chmod -x /etc/cron.daily/mlocate
+    systemctl disable plocate-updatedb.timer
 
     cd /home/ubuntu
     chown -R ubuntu:ubuntu .
